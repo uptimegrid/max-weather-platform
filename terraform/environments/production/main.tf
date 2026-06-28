@@ -139,8 +139,8 @@ module "mw-prd-apse1-eks-01" {
   node_group_name         = "mw-prd-apse1-ng-01"
   node_instance_types     = ["c7i-flex.large"] # free-tier-eligible (2 vCPU / 4 GiB) for ingress/metrics/fluent-bit + app
   node_capacity_type      = "ON_DEMAND"        # Stable capacity for the 24/7 production workload.
-  node_desired_size       = 2
-  node_min_size           = 2
+  node_desired_size       = 3                  # one node per AZ across the three private subnets (24/7 cross-AZ HA)
+  node_min_size           = 3                  # never drop below one node per AZ
   node_max_size           = 4
   node_disk_size          = 30
   endpoint_private_access = true
@@ -244,21 +244,6 @@ resource "aws_security_group" "mw-prd-apse1-sg-vpclink-01" {
   }
 
   tags = { Name = "mw-prd-apse1-sg-vpclink-01" }
-}
-
-# These ingress rules used to be standalone aws_security_group_rule resources in
-# this composition, attached to the EKS module's own security group. They now
-# live inside the EKS module via its cluster_sg_ingress_rules input (see the
-# module call above). The moved blocks migrate the existing state in place, so
-# this refactor is a no-op (no destroy/recreate, no access disruption).
-moved {
-  from = aws_security_group_rule.agent_to_eks_api
-  to   = module.mw-prd-apse1-eks-01.aws_security_group_rule.cluster_ingress["jenkins_agent_api"]
-}
-
-moved {
-  from = aws_security_group_rule.vpclink_to_nodes
-  to   = module.mw-prd-apse1-eks-01.aws_security_group_rule.cluster_ingress["vpclink_nodeport"]
 }
 
 module "mw-prd-apse1-api-01" {
