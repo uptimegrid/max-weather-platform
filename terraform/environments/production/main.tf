@@ -269,13 +269,161 @@ module "mw-prd-apse1-api-01" {
 }
 
 
+# Operational dashboard for demo/evidence. The dashboard module is a generic
+# renderer (it only does layout + the dashboard resource); the widget content
+# below is environment-specific data: API Gateway request/error/latency metrics
+# plus Logs Insights views of the application, API Gateway access logs and the
+# EKS control plane.
+locals {
+  dashboard_api_id    = module.mw-prd-apse1-api-01.api_id
+  dashboard_api_stage = "$default"
+
+  dashboard_rows = [
+    {
+      height = 2
+      widgets = [
+        {
+          type       = "text"
+          width      = 24
+          properties = { markdown = "# mw-prd-apse1 - Max Weather API\nKey operational metrics for the public API Gateway endpoint and the application running on EKS." }
+        },
+      ]
+    },
+    {
+      height = 4
+      widgets = [
+        {
+          type  = "metric"
+          width = 6
+          properties = {
+            title   = "Total requests"
+            view    = "singleValue"
+            stat    = "Sum"
+            period  = 300
+            metrics = [["AWS/ApiGateway", "Count", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage]]
+          }
+        },
+        {
+          type  = "metric"
+          width = 6
+          properties = {
+            title   = "Total 5xx errors"
+            view    = "singleValue"
+            stat    = "Sum"
+            period  = 300
+            metrics = [["AWS/ApiGateway", "5xx", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage]]
+          }
+        },
+        {
+          type  = "metric"
+          width = 6
+          properties = {
+            title  = "Error rate %"
+            view   = "singleValue"
+            period = 300
+            metrics = [
+              [{ expression = "100*(m2/m1)", label = "Error rate %", id = "e1" }],
+              ["AWS/ApiGateway", "Count", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage, { id = "m1", stat = "Sum", visible = false }],
+              ["AWS/ApiGateway", "5xx", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage, { id = "m2", stat = "Sum", visible = false }],
+            ]
+          }
+        },
+        {
+          type  = "metric"
+          width = 6
+          properties = {
+            title   = "Avg latency (ms)"
+            view    = "singleValue"
+            stat    = "Average"
+            period  = 300
+            metrics = [["AWS/ApiGateway", "Latency", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage]]
+          }
+        },
+      ]
+    },
+    {
+      height = 6
+      widgets = [
+        {
+          type  = "metric"
+          width = 12
+          properties = {
+            title  = "API requests and errors"
+            view   = "timeSeries"
+            stat   = "Sum"
+            period = 60
+            metrics = [
+              ["AWS/ApiGateway", "Count", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage, { label = "Requests" }],
+              ["AWS/ApiGateway", "4xx", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage, { label = "4xx" }],
+              ["AWS/ApiGateway", "5xx", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage, { label = "5xx" }],
+            ]
+          }
+        },
+        {
+          type  = "metric"
+          width = 12
+          properties = {
+            title  = "Latency (ms)"
+            view   = "timeSeries"
+            period = 60
+            metrics = [
+              ["AWS/ApiGateway", "Latency", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage, { stat = "Average", label = "Latency avg" }],
+              ["AWS/ApiGateway", "Latency", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage, { stat = "p99", label = "Latency p99" }],
+              ["AWS/ApiGateway", "IntegrationLatency", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage, { stat = "Average", label = "Integration latency avg" }],
+            ]
+          }
+        },
+      ]
+    },
+    {
+      height = 6
+      widgets = [
+        {
+          type  = "log"
+          width = 24
+          properties = {
+            title = "Application weather requests"
+            view  = "table"
+            query = "SOURCE '${module.mw-prd-apse1-cw-01.application_log_group_name}' | fields @timestamp, @message | sort @timestamp desc | limit 50"
+          }
+        },
+      ]
+    },
+    {
+      height = 6
+      widgets = [
+        {
+          type  = "log"
+          width = 24
+          properties = {
+            title = "API Gateway access logs by status"
+            view  = "table"
+            query = "SOURCE '${module.mw-prd-apse1-api-01.access_log_group_name}' | stats count(*) as requests by status | sort requests desc"
+          }
+        },
+      ]
+    },
+    {
+      height = 6
+      widgets = [
+        {
+          type  = "log"
+          width = 24
+          properties = {
+            title = "EKS control-plane logs"
+            view  = "table"
+            query = "SOURCE '${module.mw-prd-apse1-cw-01.cluster_log_group_name}' | fields @timestamp, @logStream, @message | sort @timestamp desc | limit 50"
+          }
+        },
+      ]
+    },
+  ]
+}
+
 module "mw-prd-apse1-dashboard-01" {
   source = "../../../../terraform-shared-modules/aws/monitor/dashboard"
 
-  name_prefix                = "mw-prd-apse1"
-  region                     = "ap-southeast-1"
-  api_id                     = module.mw-prd-apse1-api-01.api_id
-  application_log_group_name = module.mw-prd-apse1-cw-01.application_log_group_name
-  access_log_group_name      = module.mw-prd-apse1-api-01.access_log_group_name
-  cluster_log_group_name     = module.mw-prd-apse1-cw-01.cluster_log_group_name
+  dashboard_name = "mw-prd-apse1-dashboard-01"
+  region         = "ap-southeast-1"
+  rows           = local.dashboard_rows
 }
