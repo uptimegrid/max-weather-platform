@@ -60,6 +60,10 @@ def strategy = new FullControlOnceLoggedInAuthorizationStrategy()
 strategy.setAllowAnonymousRead(false)
 inst.setAuthorizationStrategy(strategy)
 inst.setSlaveAgentPort(${JNLP_PORT})
+// The controller orchestrates only: builds run on the labelled agent. Setting
+// executors to 0 keeps tool-less controller nodes from picking up "agent any"
+// work (e.g. the app build pipeline).
+inst.setNumExecutors(0)
 inst.save()
 EOF
 
@@ -78,6 +82,45 @@ if (Jenkins.get().getNode(name) == null) {
 }
 EOF
 
+# Seed the three CI/CD pipeline jobs as code so a fresh controller comes up with
+# all of them, not just whatever was clicked together in the UI:
+#   - max-weather-app-build:      builds + pushes the image to ECR
+#   - max-weather-platform-infra: Terraform plan/apply for an environment
+#   - max-weather-platform-deploy: staging -> (approve) -> production rollout
+# Each job is "Pipeline script from SCM" pointing at the repo's Jenkinsfile.
+# ensurePipeline is idempotent (it skips a job that already exists), so re-runs
+# never clobber jobs created or tuned in the UI. GitHub repos are public, so no
+# credentials are needed to read them.
+cat >/var/lib/jenkins/init.groovy.d/03-seed-jobs.groovy <<'SEED_EOF'
+import jenkins.model.Jenkins
+import hudson.plugins.git.GitSCM
+import hudson.plugins.git.BranchSpec
+import org.jenkinsci.plugins.workflow.job.WorkflowJob
+import org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition
+
+def jenkins = Jenkins.get()
+
+def ensurePipeline = { String name, String repoUrl, String branch, String scriptPath ->
+  if (jenkins.getItem(name) != null) {
+    return
+  }
+  def scm = new GitSCM(
+    GitSCM.createRepoList(repoUrl, null),
+    [new BranchSpec("*/${branch}")],
+    null, null, Collections.emptyList()
+  )
+  def definition = new CpsScmFlowDefinition(scm, scriptPath)
+  definition.setLightweight(true)
+  def job = jenkins.createProject(WorkflowJob, name)
+  job.setDefinition(definition)
+  job.save()
+}
+
+ensurePipeline('max-weather-app-build', 'https://github.com/uptimegrid/max-weather-app.git', 'main', 'jenkins/Jenkinsfile')
+ensurePipeline('max-weather-platform-infra', 'https://github.com/uptimegrid/max-weather-platform.git', 'main', 'jenkins/Jenkinsfile.infra')
+ensurePipeline('max-weather-platform-deploy', 'https://github.com/uptimegrid/max-weather-platform.git', 'main', 'jenkins/Jenkinsfile.deploy')
+SEED_EOF
+
 chown -R jenkins:jenkins /var/lib/jenkins/init.groovy.d
 
 systemctl daemon-reload
@@ -89,5 +132,6 @@ echo "Jenkins controller installed."
 echo "  UI:       http://<controller-private-ip>:8080 (reach via SSM port-forward)"
 echo "  Username: admin"
 echo "  Password: ${ADMIN_PW}"
+echo "  Jobs:     max-weather-app-build, max-weather-platform-infra, max-weather-platform-deploy"
 echo "Next: run scripts/install-jenkins-agent.sh on the agent instance with"
 echo "      CONTROLLER_URL and the same JENKINS_ADMIN_PASSWORD."
