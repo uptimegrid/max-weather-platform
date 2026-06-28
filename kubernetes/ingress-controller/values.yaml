@@ -1,0 +1,34 @@
+controller:
+  replicaCount: 2
+  ingressClassResource:
+    name: nginx
+    enabled: true
+    default: false
+  ingressClass: nginx
+  service:
+    type: LoadBalancer
+    annotations:
+      # Provision an AWS Network Load Balancer (L4) in front of ingress-nginx
+      # instead of the legacy Classic Load Balancer. NLB forwards TCP and lets
+      # nginx handle all L7 routing (no double L7 layer), preserves the client
+      # source IP, and exposes static IPs.
+      service.beta.kubernetes.io/aws-load-balancer-type: "nlb"
+      # Internal scheme: the NLB lives in private subnets and has no public IP.
+      # API Gateway reaches it through a VPC Link, so API Gateway is the ONLY
+      # public entry point into the platform.
+      service.beta.kubernetes.io/aws-load-balancer-internal: "true"
+  metrics:
+    enabled: true
+  config:
+    use-forwarded-headers: "true"
+    compute-full-forwarded-for: "true"
+    proxy-body-size: "2m"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+defaultBackend:
+  enabled: true

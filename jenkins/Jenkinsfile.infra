@@ -1,0 +1,106 @@
+// Terraform infrastructure pipeline for the Max Weather platform.
+//
+// Responsibility: provision / update the AWS infrastructure for an environment
+// (VPC, EKS, ECR, Cognito, API Gateway, CloudWatch, Jenkins EC2, ...) using the
+// Terraform composition in terraform/environments/<env>. This is the Terraform
+// half of the Jenkins-only CI/CD setup (Jenkins is the single pipeline engine;
+// there is no GitHub Actions workflow).
+//
+// Repo layout requirement: the env composition references shared modules via
+// "../../../../terraform-shared-modules/...", so this pipeline checks out BOTH
+// repos as SIBLING directories in the workspace:
+//
+//   <workspace>/
+//     max-weather-platform/terraform/environments/<env>/   (working dir)
+//     terraform-shared-modules/
+//
+// Agent requirements (self-hosted): terraform >= 1.6, aws CLI v2, git.
+// The agent IAM role needs permissions to manage the resources and to access the
+// S3 state bucket + DynamoDB lock table.
+//
+// Inputs: each environment's Terraform inputs (VPC/subnet CIDRs, oauth_*, EKS
+// sizing, etc.) are declared directly in that env's `main.tf` (no variables.tf /
+// terraform.tfvars), so no extra variable files are needed at apply time. Only
+// the S3 backend values are injected (see below).
+//
+// Bootstrap ordering (fresh environment): both environments wire the API Gateway
+// VPC Link from the internal ingress NLB created by ingress-nginx. So the first
+// run must be a targeted apply (VPC + EKS), then deploy ingress-nginx, then a
+// full apply. After that, day-to-day applies run in a single pass.
+
+pipeline {
+  agent any
+
+  parameters {
+    choice(name: 'ENVIRONMENT', choices: ['staging', 'production'], description: 'Target environment')
+    booleanParam(name: 'AUTO_APPROVE', defaultValue: false, description: 'Skip manual approval and apply automatically')
+  }
+
+  environment {
+    AWS_REGION          = 'ap-southeast-1'
+    SHARED_MODULES_REPO = 'https://github.com/uptimegrid/terraform-shared-modules.git'
+    SHARED_MODULES_REF  = 'main'
+    // Terraform S3 backend values, stored as Jenkins secret-text credentials.
+    TF_STATE_BUCKET = credentials('mw-tf-state-bucket')
+    TF_LOCK_TABLE   = credentials('mw-tf-lock-table')
+  }
+
+  stages {
+    stage('Checkout') {
+      steps {
+        // This repo (max-weather-platform) into a named subdirectory.
+        dir('max-weather-platform') {
+          checkout scm
+        }
+        // Shared modules as a SIBLING dir so relative module paths resolve.
+        dir('terraform-shared-modules') {
+          git url: env.SHARED_MODULES_REPO, branch: env.SHARED_MODULES_REF
+        }
+      }
+    }
+
+    stage('Terraform Init') {
+      steps {
+        dir("max-weather-platform/terraform/environments/${params.ENVIRONMENT}") {
+          sh '''
+            terraform init -input=false \
+              -backend-config="bucket=${TF_STATE_BUCKET}" \
+              -backend-config="region=${AWS_REGION}" \
+              -backend-config="dynamodb_table=${TF_LOCK_TABLE}"
+          '''
+        }
+      }
+    }
+
+    stage('Terraform Validate') {
+      steps {
+        dir("max-weather-platform/terraform/environments/${params.ENVIRONMENT}") {
+          sh 'terraform fmt -check -recursive && terraform validate'
+        }
+      }
+    }
+
+    stage('Terraform Plan') {
+      steps {
+        dir("max-weather-platform/terraform/environments/${params.ENVIRONMENT}") {
+          sh 'terraform plan -input=false -out=tfplan'
+        }
+      }
+    }
+
+    stage('Approve Apply') {
+      when { expression { !params.AUTO_APPROVE } }
+      steps {
+        input message: "Apply Terraform changes to ${params.ENVIRONMENT}?", ok: 'Apply'
+      }
+    }
+
+    stage('Terraform Apply') {
+      steps {
+        dir("max-weather-platform/terraform/environments/${params.ENVIRONMENT}") {
+          sh 'terraform apply -input=false tfplan'
+        }
+      }
+    }
+  }
+}

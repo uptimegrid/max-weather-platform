@@ -1,0 +1,81 @@
+// Deploy + promote pipeline for the Max Weather platform.
+//
+// Responsibility: deploy a pre-built, immutable image tag (produced by the
+// max-weather-app build pipeline and pushed to ECR) into staging, run a smoke
+// test, require manual approval, then deploy the SAME tested image tag to
+// production. This satisfies "incremental deployment from staging to
+// production after it is successfully tested in staging".
+//
+// Agent requirements (self-hosted): aws CLI v2, kubectl, kustomize.
+// The agent IAM role must be listed in the EKS module input
+// `cluster_admin_principal_arns` so it can run kubectl (see EKS access entries).
+
+pipeline {
+  agent any
+
+  parameters {
+    string(name: 'IMAGE_TAG', defaultValue: '', description: 'Immutable image tag built by the app pipeline (required)')
+  }
+
+  environment {
+    AWS_REGION       = 'ap-southeast-1'
+    ECR_REGISTRY     = 'ACCOUNT_ID.dkr.ecr.ap-southeast-1.amazonaws.com'
+    IMAGE_NAME       = 'max-weather-app'
+    STAGING_CLUSTER  = 'max-weather-staging'
+    PROD_CLUSTER     = 'max-weather-production'
+  }
+
+  stages {
+    stage('Validate Input') {
+      steps {
+        script {
+          if (!params.IMAGE_TAG?.trim()) {
+            error 'IMAGE_TAG is required (the immutable tag pushed to ECR by the app build pipeline).'
+          }
+        }
+      }
+    }
+
+    stage('Deploy To Staging') {
+      steps {
+        sh '''
+          aws eks update-kubeconfig --name "$STAGING_CLUSTER" --region "$AWS_REGION"
+          cd kubernetes/staging
+          kustomize edit set image "$IMAGE_NAME=$ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+          kubectl apply -k .
+          kubectl -n max-weather rollout status deployment/weather-api --timeout=180s
+        '''
+      }
+    }
+
+    stage('Smoke Test Staging') {
+      steps {
+        sh './scripts/smoke-test.sh staging'
+      }
+    }
+
+    stage('Approve Promotion') {
+      steps {
+        input message: "Promote image ${params.IMAGE_TAG} to production?", ok: 'Deploy'
+      }
+    }
+
+    stage('Deploy To Production') {
+      steps {
+        sh '''
+          aws eks update-kubeconfig --name "$PROD_CLUSTER" --region "$AWS_REGION"
+          cd kubernetes/production
+          kustomize edit set image "$IMAGE_NAME=$ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+          kubectl apply -k .
+          kubectl -n max-weather rollout status deployment/weather-api --timeout=180s
+        '''
+      }
+    }
+
+    stage('Smoke Test Production') {
+      steps {
+        sh './scripts/smoke-test.sh production'
+      }
+    }
+  }
+}

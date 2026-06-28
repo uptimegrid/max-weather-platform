@@ -1,0 +1,123 @@
+{
+  "info": {
+    "name": "Max Weather API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Get OAuth2 Token (client_credentials)",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const json = pm.response.json();",
+              "pm.test('access_token returned', () => pm.expect(json.access_token).to.be.a('string'));",
+              "pm.collectionVariables.set('access_token', json.access_token);"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "auth": {
+          "type": "basic",
+          "basic": [
+            { "key": "username", "value": "{{client_id}}", "type": "string" },
+            { "key": "password", "value": "{{client_secret}}", "type": "string" }
+          ]
+        },
+        "header": [
+          {
+            "key": "Content-Type",
+            "value": "application/x-www-form-urlencoded"
+          }
+        ],
+        "body": {
+          "mode": "urlencoded",
+          "urlencoded": [
+            { "key": "grant_type", "value": "client_credentials" },
+            { "key": "scope", "value": "{{scope}}" }
+          ]
+        },
+        "url": {
+          "raw": "{{token_url}}",
+          "host": ["{{token_url}}"]
+        }
+      }
+    },
+    {
+      "name": "Health",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/health",
+          "host": ["{{base_url}}"],
+          "path": ["health"]
+        }
+      }
+    },
+    {
+      "name": "Weather By City",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{access_token}}"
+          }
+        ],
+        "url": {
+          "raw": "{{base_url}}/weather?city=London",
+          "host": ["{{base_url}}"],
+          "path": ["weather"],
+          "query": [
+            {
+              "key": "city",
+              "value": "London"
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://api.example.com",
+      "description": "API Gateway endpoint (Terraform output: api_endpoint)"
+    },
+    {
+      "key": "token_url",
+      "value": "https://example.auth.ap-southeast-1.amazoncognito.com/oauth2/token",
+      "description": "Cognito token endpoint (Terraform output: oauth_token_endpoint)"
+    },
+    {
+      "key": "client_id",
+      "value": "replace-me",
+      "description": "Cognito app client id (Terraform output: oauth_client_id)"
+    },
+    {
+      "key": "client_secret",
+      "value": "replace-me",
+      "description": "Cognito app client secret (Terraform output: oauth_client_secret)"
+    },
+    {
+      "key": "scope",
+      "value": "https://api.max-weather.staging/weather.read",
+      "description": "OAuth2 scope (Terraform output: oauth_scope)"
+    },
+    {
+      "key": "access_token",
+      "value": "",
+      "description": "Populated automatically by the Get OAuth2 Token request"
+    }
+  ]
+}

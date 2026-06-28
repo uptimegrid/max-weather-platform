@@ -1,0 +1,27 @@
+# Helm values for the aws-for-fluent-bit chart.
+#
+# This DaemonSet ships pod stdout/stderr logs to the CloudWatch log group that
+# Terraform provisions in the monitor module. It authenticates with the IRSA
+# IAM role created by the monitor module (no static AWS credentials in cluster).
+#
+# The service account name and namespace below MUST match the IRSA trust policy
+# defaults in terraform-shared-modules/aws/monitor (kube-system /
+# aws-for-fluent-bit). Override them together if you change the Terraform inputs.
+
+serviceAccount:
+  create: true
+  name: aws-for-fluent-bit
+  annotations:
+    # Terraform output: module.monitor.log_shipper_role_arn
+    eks.amazonaws.com/role-arn: REPLACE_WITH_LOG_SHIPPER_ROLE_ARN
+
+cloudWatchLogs:
+  enabled: true
+  # Terraform input: var.aws_region
+  region: REPLACE_WITH_AWS_REGION
+  # Terraform output: module.monitor.log_group_name
+  # (format: /max-weather/<environment>/<application_name>)
+  logGroupName: REPLACE_WITH_APPLICATION_LOG_GROUP_NAME
+  logStreamPrefix: fluentbit-
+  # Terraform already creates and manages the log group and its retention.
+  autoCreateGroup: false

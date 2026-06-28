@@ -1,0 +1,5 @@
+# Copy to backend.hcl and fill with the values printed by scripts/bootstrap-backend.sh.
+# Then run: terraform init -backend-config=backend.hcl
+bucket         = "mw-apse1-tfstate-REPLACE-WITH-ACCOUNT-ID-01"
+region         = "ap-southeast-1"
+dynamodb_table = "mw-apse1-tflock-01"
