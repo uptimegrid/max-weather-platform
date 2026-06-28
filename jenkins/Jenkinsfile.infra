@@ -74,8 +74,12 @@ pipeline {
     stage('Terraform Init') {
       steps {
         dir("max-weather-platform/terraform/environments/${params.ENVIRONMENT}") {
+          // -reconfigure: a reused agent workspace may cache an older backend
+          // config; reconfigure from the current settings each run instead of
+          // failing with "Backend configuration changed". The state location
+          // (bucket/key) is unchanged, so no state migration is involved.
           sh '''
-            terraform init -input=false -no-color \
+            terraform init -input=false -no-color -reconfigure \
               -backend-config="bucket=${TF_STATE_BUCKET}" \
               -backend-config="region=${AWS_REGION}"
           '''
