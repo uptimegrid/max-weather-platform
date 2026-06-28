@@ -1,3 +1,4 @@
+# CI/CD pipeline connectivity test: this comment triggers a Jenkins SCM-poll build.
 module "mw-prd-apse1-vpc-01" {
   source = "../../../../terraform-shared-modules/aws/network/vpc"
 
