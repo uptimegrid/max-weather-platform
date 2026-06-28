@@ -14,17 +14,20 @@ AGENT_NODE="build-agent-01"
 AGENT_WORKDIR="/opt/jenkins-agent"
 ADMIN_PW="${JENKINS_ADMIN_PASSWORD:-$(openssl rand -base64 32 | tr -dc 'A-Za-z0-9' | cut -c1-24)}"
 
-dnf -y install java-17-amazon-corretto-headless git unzip
+dnf -y install java-21-amazon-corretto-headless git unzip
 
 # Jenkins LTS.
 curl -fsSL https://pkg.jenkins.io/redhat-stable/jenkins.repo -o /etc/yum.repos.d/jenkins.repo
 rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
 dnf -y install jenkins
 
-# Skip the setup wizard and pin the HTTP port.
+# Skip the setup wizard, pin the HTTP port, and force Jenkins to use Java 21
+# (Jenkins requires Java 21+, and Java 17 may also be present on the host).
+JAVA21="$(ls -d /usr/lib/jvm/java-21-amazon-corretto*/bin/java | head -1)"
 mkdir -p /etc/systemd/system/jenkins.service.d
-cat >/etc/systemd/system/jenkins.service.d/override.conf <<'EOF'
+cat >/etc/systemd/system/jenkins.service.d/override.conf <<EOF
 [Service]
+Environment="JENKINS_JAVA_CMD=${JAVA21}"
 Environment="JENKINS_OPTS=--httpPort=8080"
 Environment="JAVA_OPTS=-Djenkins.install.runSetupWizard=false"
 EOF
@@ -65,7 +68,9 @@ EOF
 chown -R jenkins:jenkins /var/lib/jenkins/init.groovy.d
 
 systemctl daemon-reload
-systemctl enable --now jenkins
+systemctl enable jenkins
+# Use restart (not "enable --now") so re-runs pick up config/override changes.
+systemctl restart jenkins
 
 echo "Jenkins controller installed."
 echo "  UI:       http://<controller-private-ip>:8080 (reach via SSM port-forward)"

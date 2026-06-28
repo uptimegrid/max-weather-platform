@@ -14,19 +14,19 @@ ADMIN_PW="${JENKINS_ADMIN_PASSWORD:?set JENKINS_ADMIN_PASSWORD (same as the cont
 AGENT_NODE="${AGENT_NODE:-build-agent-01}"
 AGENT_WORKDIR="/opt/jenkins-agent"
 
-dnf -y install java-17-amazon-corretto-headless git unzip docker dnf-plugins-core
+dnf -y install java-21-amazon-corretto-headless git unzip docker dnf-plugins-core
 
 # AWS CLI v2.
 curl -fsSL "https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip" -o /tmp/awscliv2.zip
-unzip -q /tmp/awscliv2.zip -d /tmp
+unzip -q -o /tmp/awscliv2.zip -d /tmp
 /tmp/aws/install --update
 
 # Terraform (HashiCorp repo).
 dnf config-manager --add-repo https://rpm.releases.hashicorp.com/AmazonLinux/hashicorp.repo
 dnf -y install terraform
 
-# kubectl (matches the EKS 1.30 control plane).
-curl -fsSL "https://dl.k8s.io/release/v1.30.0/bin/linux/amd64/kubectl" -o /usr/local/bin/kubectl
+# kubectl (matches the EKS 1.35 control plane; keep within ±1 minor skew).
+curl -fsSL "https://dl.k8s.io/release/v1.35.0/bin/linux/amd64/kubectl" -o /usr/local/bin/kubectl
 chmod +x /usr/local/bin/kubectl
 
 systemctl enable --now docker
@@ -60,7 +60,10 @@ Wants=network-online.target
 [Service]
 User=jenkins
 WorkingDirectory=${AGENT_WORKDIR}
-ExecStart=/usr/bin/java -jar ${AGENT_WORKDIR}/agent.jar -url ${CONTROLLER_URL}/ -secret ${SECRET} -name ${AGENT_NODE} -workDir ${AGENT_WORKDIR}
+# Connect over WebSocket (HTTP/8080) instead of the TCP inbound (JNLP4) port.
+# WebSocket needs no X-Instance-Identity handshake and no port 50000, so it works
+# with a plugin-light controller and across tighter network boundaries.
+ExecStart=/usr/bin/java -jar ${AGENT_WORKDIR}/agent.jar -url ${CONTROLLER_URL}/ -secret ${SECRET} -name ${AGENT_NODE} -webSocket -workDir ${AGENT_WORKDIR}
 Restart=always
 RestartSec=10
 
@@ -69,5 +72,7 @@ WantedBy=multi-user.target
 EOF
 
 systemctl daemon-reload
-systemctl enable --now jenkins-agent
+systemctl enable jenkins-agent
+# Use restart (not "enable --now") so re-runs pick up a changed ExecStart/secret.
+systemctl restart jenkins-agent
 echo "Agent installed and joined the controller as ${AGENT_NODE}."
