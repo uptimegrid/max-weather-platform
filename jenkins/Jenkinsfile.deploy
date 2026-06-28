@@ -17,6 +17,7 @@ pipeline {
 
   parameters {
     string(name: 'IMAGE_TAG', defaultValue: '', description: 'Immutable image tag built by the app pipeline (required)')
+    booleanParam(name: 'DEPLOY_STAGING', defaultValue: false, description: 'Deploy and smoke test staging before promoting to production. Disabled while only the production cluster exists.')
   }
 
   environment {
@@ -42,6 +43,7 @@ pipeline {
     }
 
     stage('Deploy To Staging') {
+      when { expression { return params.DEPLOY_STAGING } }
       steps {
         sh '''
           aws eks update-kubeconfig --name "$STAGING_CLUSTER" --region "$AWS_REGION"
@@ -54,6 +56,7 @@ pipeline {
     }
 
     stage('Smoke Test Staging') {
+      when { expression { return params.DEPLOY_STAGING } }
       steps {
         sh './scripts/smoke-test.sh staging'
       }
