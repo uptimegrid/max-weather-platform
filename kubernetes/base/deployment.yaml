@@ -18,6 +18,11 @@ spec:
           # Image name/tag are set per environment by the kustomize overlays
           # and by the Jenkins deploy pipeline (kustomize edit set image).
           image: max-weather-app:latest
+          env:
+            # VPC egress is IPv4-only (NAT gateway, no egress-only IGW) and the
+            # upstreams (open-meteo) are dual-stack: prefer IPv4 for outbound DNS.
+            - name: NODE_OPTIONS
+              value: "--dns-result-order=ipv4first"
           ports:
             - containerPort: 8080
           readinessProbe:
