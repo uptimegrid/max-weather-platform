@@ -7,6 +7,10 @@ controller:
   ingressClass: nginx
   service:
     type: LoadBalancer
+    # TLS terminates at API Gateway (the single public entry point), which
+    # forwards to this internal NLB over HTTP only. Disable the chart's default
+    # 443 listener so the NLB exposes port 80 only, matching the design.
+    enableHttps: false
     annotations:
       # Provision an AWS Network Load Balancer (L4) in front of ingress-nginx
       # instead of the legacy Classic Load Balancer. NLB forwards TCP and lets
