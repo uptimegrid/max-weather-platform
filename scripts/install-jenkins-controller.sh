@@ -21,6 +21,19 @@ curl -fsSL https://pkg.jenkins.io/redhat-stable/jenkins.repo -o /etc/yum.repos.d
 rpm --import https://pkg.jenkins.io/redhat-stable/jenkins.io-2023.key
 dnf -y install jenkins
 
+# Plugins the Terraform/deploy pipelines need (the setup wizard is skipped, so
+# nothing is bundled): Pipeline, Git SCM + polling, and credentials binding.
+# The plugin manager resolves all transitive dependencies.
+PLUGIN_MGR_VERSION=2.15.0
+mkdir -p /var/lib/jenkins/plugins
+curl -fsSL -o /opt/jenkins-plugin-manager.jar \
+  "https://github.com/jenkinsci/plugin-installation-manager-tool/releases/download/${PLUGIN_MGR_VERSION}/jenkins-plugin-manager-${PLUGIN_MGR_VERSION}.jar"
+java -jar /opt/jenkins-plugin-manager.jar \
+  --war /usr/share/java/jenkins.war \
+  --plugin-download-directory /var/lib/jenkins/plugins \
+  --plugins workflow-aggregator git credentials-binding pipeline-stage-view
+chown -R jenkins:jenkins /var/lib/jenkins/plugins
+
 # Skip the setup wizard, pin the HTTP port, and force Jenkins to use Java 21
 # (Jenkins requires Java 21+, and Java 17 may also be present on the host).
 JAVA21="$(ls -d /usr/lib/jvm/java-21-amazon-corretto*/bin/java | head -1)"
