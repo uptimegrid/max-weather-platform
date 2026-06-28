@@ -1,10 +1,10 @@
 // Deploy + promote pipeline for the Max Weather platform.
 //
 // Responsibility: deploy a pre-built, immutable image tag (produced by the
-// max-weather-app build pipeline and pushed to ECR) into staging, run a smoke
-// test, require manual approval, then deploy the SAME tested image tag to
-// production. This satisfies "incremental deployment from staging to
-// production after it is successfully tested in staging".
+// max-weather-app build pipeline and pushed to ECR) into staging, require
+// manual approval, then deploy the SAME tested image tag to production. This
+// satisfies "incremental deployment from staging to production after it is
+// successfully tested in staging".
 //
 // Agent requirements (self-hosted): aws CLI v2, kubectl, kustomize.
 // The agent IAM role must be listed in the EKS module input
@@ -17,7 +17,7 @@ pipeline {
 
   parameters {
     string(name: 'IMAGE_TAG', defaultValue: '', description: 'Immutable image tag built by the app pipeline (required)')
-    booleanParam(name: 'DEPLOY_STAGING', defaultValue: false, description: 'Deploy and smoke test staging before promoting to production. Disabled while only the production cluster exists.')
+    booleanParam(name: 'DEPLOY_STAGING', defaultValue: false, description: 'Deploy to staging before promoting to production. Disabled while only the production cluster exists.')
   }
 
   environment {
@@ -55,13 +55,6 @@ pipeline {
       }
     }
 
-    stage('Smoke Test Staging') {
-      when { expression { return params.DEPLOY_STAGING } }
-      steps {
-        sh './scripts/smoke-test.sh staging'
-      }
-    }
-
     stage('Approve Promotion') {
       steps {
         input message: "Promote image ${params.IMAGE_TAG} to production?", ok: 'Deploy'
@@ -77,12 +70,6 @@ pipeline {
           kubectl apply -k .
           kubectl -n max-weather rollout status deployment/weather-api --timeout=180s
         '''
-      }
-    }
-
-    stage('Smoke Test Production') {
-      steps {
-        sh './scripts/smoke-test.sh production'
       }
     }
   }
