@@ -296,31 +296,34 @@ locals {
           type  = "metric"
           width = 6
           properties = {
-            title   = "Total requests"
-            view    = "singleValue"
-            stat    = "Sum"
-            period  = 300
-            metrics = [["AWS/ApiGateway", "Count", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage]]
+            title                = "Total requests"
+            view                 = "singleValue"
+            stat                 = "Sum"
+            period               = 300
+            setPeriodToTimeRange = true
+            metrics              = [["AWS/ApiGateway", "Count", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage]]
           }
         },
         {
           type  = "metric"
           width = 6
           properties = {
-            title   = "Total 5xx errors"
-            view    = "singleValue"
-            stat    = "Sum"
-            period  = 300
-            metrics = [["AWS/ApiGateway", "5xx", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage]]
+            title                = "Total 5xx errors"
+            view                 = "singleValue"
+            stat                 = "Sum"
+            period               = 300
+            setPeriodToTimeRange = true
+            metrics              = [["AWS/ApiGateway", "5xx", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage]]
           }
         },
         {
           type  = "metric"
           width = 6
           properties = {
-            title  = "Error rate %"
-            view   = "singleValue"
-            period = 300
+            title                = "Error rate %"
+            view                 = "singleValue"
+            period               = 300
+            setPeriodToTimeRange = true
             metrics = [
               [{ expression = "100*(m2/m1)", label = "Error rate %", id = "e1" }],
               ["AWS/ApiGateway", "Count", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage, { id = "m1", stat = "Sum", visible = false }],
@@ -332,11 +335,12 @@ locals {
           type  = "metric"
           width = 6
           properties = {
-            title   = "Avg latency (ms)"
-            view    = "singleValue"
-            stat    = "Average"
-            period  = 300
-            metrics = [["AWS/ApiGateway", "Latency", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage]]
+            title                = "Avg latency (ms)"
+            view                 = "singleValue"
+            stat                 = "Average"
+            period               = 300
+            setPeriodToTimeRange = true
+            metrics              = [["AWS/ApiGateway", "Latency", "ApiId", local.dashboard_api_id, "Stage", local.dashboard_api_stage]]
           }
         },
       ]
