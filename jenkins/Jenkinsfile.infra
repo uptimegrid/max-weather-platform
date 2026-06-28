@@ -74,7 +74,7 @@ pipeline {
       steps {
         dir("max-weather-platform/terraform/environments/${params.ENVIRONMENT}") {
           sh '''
-            terraform init -input=false \
+            terraform init -input=false -no-color \
               -backend-config="bucket=${TF_STATE_BUCKET}" \
               -backend-config="region=${AWS_REGION}" \
               -backend-config="dynamodb_table=${TF_LOCK_TABLE}"
@@ -86,7 +86,7 @@ pipeline {
     stage('Terraform Validate') {
       steps {
         dir("max-weather-platform/terraform/environments/${params.ENVIRONMENT}") {
-          sh 'terraform fmt -check -recursive && terraform validate'
+          sh 'terraform fmt -check -recursive && terraform validate -no-color'
         }
       }
     }
@@ -94,7 +94,7 @@ pipeline {
     stage('Terraform Plan') {
       steps {
         dir("max-weather-platform/terraform/environments/${params.ENVIRONMENT}") {
-          sh 'terraform plan -input=false -out=tfplan'
+          sh 'terraform plan -input=false -no-color -out=tfplan'
         }
       }
     }
@@ -109,7 +109,7 @@ pipeline {
     stage('Terraform Apply') {
       steps {
         dir("max-weather-platform/terraform/environments/${params.ENVIRONMENT}") {
-          sh 'terraform apply -input=false tfplan'
+          sh 'terraform apply -input=false -no-color tfplan'
         }
       }
     }
