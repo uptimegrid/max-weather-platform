@@ -95,12 +95,13 @@ cat >/var/lib/jenkins/init.groovy.d/03-seed-jobs.groovy <<'SEED_EOF'
 import jenkins.model.Jenkins
 import hudson.plugins.git.GitSCM
 import hudson.plugins.git.BranchSpec
+import hudson.triggers.SCMTrigger
 import org.jenkinsci.plugins.workflow.job.WorkflowJob
 import org.jenkinsci.plugins.workflow.cps.CpsScmFlowDefinition
 
 def jenkins = Jenkins.get()
 
-def ensurePipeline = { String name, String repoUrl, String branch, String scriptPath ->
+def ensurePipeline = { String name, String repoUrl, String branch, String scriptPath, String pollSpec ->
   if (jenkins.getItem(name) != null) {
     return
   }
@@ -113,12 +114,18 @@ def ensurePipeline = { String name, String repoUrl, String branch, String script
   definition.setLightweight(true)
   def job = jenkins.createProject(WorkflowJob, name)
   job.setDefinition(definition)
+  // Register SCM polling here (not only via the Jenkinsfile's triggers block):
+  // a "Pipeline from SCM" job does not register its declarative triggers until
+  // its first manual build, so a freshly seeded job would never poll on its own.
+  if (pollSpec != null) {
+    job.addTrigger(new SCMTrigger(pollSpec))
+  }
   job.save()
 }
 
-ensurePipeline('max-weather-app-build', 'https://github.com/uptimegrid/max-weather-app.git', 'main', 'jenkins/Jenkinsfile')
-ensurePipeline('max-weather-platform-infra', 'https://github.com/uptimegrid/max-weather-platform.git', 'main', 'jenkins/Jenkinsfile.infra')
-ensurePipeline('max-weather-platform-deploy', 'https://github.com/uptimegrid/max-weather-platform.git', 'main', 'jenkins/Jenkinsfile.deploy')
+ensurePipeline('max-weather-app-build', 'https://github.com/uptimegrid/max-weather-app.git', 'main', 'jenkins/Jenkinsfile', 'H/2 * * * *')
+ensurePipeline('max-weather-platform-infra', 'https://github.com/uptimegrid/max-weather-platform.git', 'main', 'jenkins/Jenkinsfile.infra', 'H/2 * * * *')
+ensurePipeline('max-weather-platform-deploy', 'https://github.com/uptimegrid/max-weather-platform.git', 'main', 'jenkins/Jenkinsfile.deploy', null)
 SEED_EOF
 
 chown -R jenkins:jenkins /var/lib/jenkins/init.groovy.d
