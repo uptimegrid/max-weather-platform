@@ -2,16 +2,10 @@ module "mw-prd-apse1-vpc-01" {
   source = "../../../../terraform-shared-modules/aws/network/vpc"
 
   environment  = "production"
-  name_prefix  = "mw-prd-apse1"        # names the VPC / IGW / NAT / route tables
-  cluster_name = "mw-prd-apse1-eks-01" # tags subnets for EKS / load balancer discovery
+  name_prefix  = "mw-prd-apse1"
+  cluster_name = "mw-prd-apse1-eks-01"
   vpc_cidr     = "10.20.0.0/20"
 
-  # Production is full HA across 3 AZs and has NO public subnets: the Regional
-  # NAT Gateway is a VPC-level resource (needs no public subnet to host it) and
-  # the only public entry point is API Gateway (AWS-managed, outside the VPC)
-  # reaching an internal NLB via VPC Link. Each subnet is explicit: name (the map
-  # key) + CIDR + AZ + tier. EKS spans all three AZs; Jenkins (EC2) has its own
-  # private subnet.
   subnets = {
     "mw-prd-apse1-snet-eks-prv-01" = { cidr = "10.20.4.0/24", az = "ap-southeast-1a", tier = "private" }
     "mw-prd-apse1-snet-eks-prv-02" = { cidr = "10.20.5.0/24", az = "ap-southeast-1b", tier = "private" }
@@ -19,14 +13,8 @@ module "mw-prd-apse1-vpc-01" {
     "mw-prd-apse1-snet-ec2-prv-01" = { cidr = "10.20.8.0/24", az = "ap-southeast-1a", tier = "private" }
   }
 
-  # Regional NAT Gateway: a single VPC-level NAT that automatically spans all AZs
-  # with workloads (full 24/7 HA, no per-AZ NAT or public subnet to manage). It
-  # gets its own AWS-managed route table with a route to the IGW for egress.
   nat_gateway_mode = "regional"
 
-  # Explicit route table defined here (not hidden in the module): all 4 private
-  # subnets share rt-prv-01 (default route -> Regional NAT). There is no public
-  # route table because there are no public subnets.
   route_tables = {
     "mw-prd-apse1-rt-prv-01" = {
       routes = [
@@ -35,7 +23,6 @@ module "mw-prd-apse1-vpc-01" {
     }
   }
 
-  # Which subnet associates with which route table (subnet name => route table name).
   route_table_associations = {
     "mw-prd-apse1-snet-eks-prv-01" = "mw-prd-apse1-rt-prv-01"
     "mw-prd-apse1-snet-eks-prv-02" = "mw-prd-apse1-rt-prv-01"
@@ -49,13 +36,10 @@ module "mw-prd-apse1-ecr-01" {
 
   name = "mw-prd-apse1-ecr-01"
 
-  # Production hardening: immutable tags for image provenance and no force-delete
-  # so a repository with images cannot be removed accidentally.
   image_tag_mutability  = "IMMUTABLE"
   force_delete          = false
   image_retention_count = 30
 }
-
 
 module "mw-prd-apse1-ec2-jenkins-ctrl-01" {
   source = "../../../../terraform-shared-modules/aws/compute/ec2"
@@ -86,9 +70,6 @@ module "mw-prd-apse1-ec2-jenkins-ctrl-01" {
     },
   ]
 
-  # The instance is a plain VM reached via SSM Session Manager (no SSH key). Jenkins
-  # is installed/configured afterwards with scripts/install-jenkins-controller.sh.
-  # Ensure the VPC (subnets, NAT, routes) exists before the instance is created.
   depends_on = [module.mw-prd-apse1-vpc-01]
 }
 
@@ -98,24 +79,16 @@ module "mw-prd-apse1-ec2-jenkins-agent-01" {
   name          = "mw-prd-apse1-ec2-jenkins-agent-01"
   vpc_id        = module.mw-prd-apse1-vpc-01.vpc_id
   subnet_id     = module.mw-prd-apse1-vpc-01.private_subnet_ids_by_name["mw-prd-apse1-snet-ec2-prv-01"]
-  instance_type = "c7i-flex.large" # free-tier-eligible (2 vCPU / 4 GiB) for Terraform + Docker builds
+  instance_type = "c7i-flex.large"
 
   iam_managed_policy_arns = [
     "arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore",
     "arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryPowerUser",
   ]
 
-  # Plain VM reached via SSM Session Manager (no SSH key). The build toolchain and
-  # agent join are installed afterwards with scripts/install-jenkins-agent.sh.
-  # Ensure the VPC (subnets, NAT, routes) exists before the instance is created.
   depends_on = [module.mw-prd-apse1-vpc-01]
 }
 
-# The agent runs Terraform for the WHOLE platform, so its role needs broad
-# permissions. For this assessment we attach AdministratorAccess to keep it
-# simple. In a production setup, scope this down to a least-privilege deploy
-# policy, or have the agent assume a dedicated Terraform deploy role so the
-# instance profile itself stays minimal (separation of duties).
 resource "aws_iam_role_policy_attachment" "jenkins_agent_deploy" {
   role       = module.mw-prd-apse1-ec2-jenkins-agent-01.iam_role_name
   policy_arn = "arn:aws:iam::aws:policy/AdministratorAccess"
@@ -137,26 +110,19 @@ module "mw-prd-apse1-eks-01" {
     module.mw-prd-apse1-vpc-01.private_subnet_ids_by_name["mw-prd-apse1-snet-eks-prv-03"],
   ]
   node_group_name         = "mw-prd-apse1-ng-01"
-  node_instance_types     = ["c7i-flex.large"] # free-tier-eligible (2 vCPU / 4 GiB) for ingress/metrics/fluent-bit + app
-  node_capacity_type      = "ON_DEMAND"        # Stable capacity for the 24/7 production workload.
-  node_desired_size       = 3                  # one node per AZ across the three private subnets (24/7 cross-AZ HA)
-  node_min_size           = 3                  # never drop below one node per AZ
+  node_instance_types     = ["c7i-flex.large"]
+  node_capacity_type      = "ON_DEMAND"
+  node_desired_size       = 3
+  node_min_size           = 3
   node_max_size           = 4
   node_disk_size          = 30
   endpoint_private_access = true
-  # Private-only API endpoint: reachable from inside the VPC (e.g. the Jenkins
-  # agent) but not the public internet. Re-enable public access from the console
-  # temporarily when external kubectl access is needed.
+
   endpoint_public_access = false
   cluster_log_types      = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 
-  # Grant the Jenkins agent EKS cluster-admin so it can run kubectl during deploys.
   cluster_admin_principal_arns = [module.mw-prd-apse1-ec2-jenkins-agent-01.iam_role_arn]
 
-  # Ingress on the cluster security group (owned by the EKS module). The agent
-  # reaches the private API endpoint on 443, and the API Gateway VPC Link reaches
-  # the NodePort range. Defined here as data (which SG is trusted), implemented by
-  # the module that owns the SG.
   cluster_sg_ingress_rules = {
     jenkins_agent_api = {
       description              = "EKS API server (443) from the Jenkins build agent"
@@ -199,22 +165,9 @@ module "mw-prd-apse1-cognito-01" {
   resource_server_identifier = "https://api.max-weather.production"
   oauth_scope_name           = "invoke"
 
-  # Production hardening: protect the user pool from accidental deletion.
   deletion_protection = "ACTIVE"
 }
 
-# --- Private API integration: API Gateway -> VPC Link -> internal ingress NLB ---
-# Both environments use the same design: API Gateway is the only public entry
-# point and reaches the cluster privately through a VPC Link to the internal NLB.
-# The internal NLB is created by the ingress-nginx Helm release, so it is looked
-# up by tag. Bootstrap ordering (see docs/architecture.md): create the VPC/EKS
-# first (targeted apply), deploy ingress-nginx so the internal NLB exists, then
-# run a full apply to wire the VPC Link to the NLB listener.
-#
-# Both environments run in the same AWS account, so the lookup is scoped to THIS
-# cluster with the `kubernetes.io/cluster/<name> = owned` tag the AWS in-tree
-# cloud provider stamps on the NLB. Without it the service-name tag alone would
-# match the staging AND production NLBs.
 data "aws_lb" "ingress" {
   tags = {
     "kubernetes.io/service-name"                = "ingress-nginx/ingress-nginx-controller"
@@ -227,7 +180,6 @@ data "aws_lb_listener" "ingress" {
   port              = 80
 }
 
-# Security group attached to the VPC Link ENIs.
 resource "aws_security_group" "mw-prd-apse1-sg-vpclink-01" {
   depends_on = [module.mw-prd-apse1-vpc-01]
 
@@ -252,7 +204,6 @@ module "mw-prd-apse1-api-01" {
   name_prefix = "mw-prd-apse1"
   api_name    = "mw-prd-apse1-api-01"
 
-  # Private path: API Gateway -> VPC Link -> internal NLB listener.
   private_integration = true
   vpc_link_subnet_ids = [
     module.mw-prd-apse1-vpc-01.private_subnet_ids_by_name["mw-prd-apse1-snet-eks-prv-01"],
@@ -268,12 +219,6 @@ module "mw-prd-apse1-api-01" {
   access_log_retention_in_days = 14
 }
 
-
-# Operational dashboard for demo/evidence. The dashboard module is a generic
-# renderer (it only does layout + the dashboard resource); the widget content
-# below is environment-specific data: API Gateway request/error/latency metrics
-# plus Logs Insights views of the application, API Gateway access logs and the
-# EKS control plane.
 locals {
   dashboard_api_id    = module.mw-prd-apse1-api-01.api_id
   dashboard_api_stage = "$default"
