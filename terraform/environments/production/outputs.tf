@@ -45,6 +45,10 @@ output "api_endpoint" {
   value = module.mw-prd-apse1-api-01.api_endpoint
 }
 
+output "dashboard_name" {
+  value = module.mw-prd-apse1-dashboard-01.dashboard_name
+}
+
 output "oauth_token_endpoint" {
   value = module.mw-prd-apse1-cognito-01.oauth_token_endpoint
 }

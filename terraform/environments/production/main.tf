@@ -267,3 +267,14 @@ module "mw-prd-apse1-api-01" {
   oauth_scope                  = module.mw-prd-apse1-cognito-01.oauth_scope
   access_log_retention_in_days = 14
 }
+
+
+module "mw-prd-apse1-dashboard-01" {
+  source = "../../../../terraform-shared-modules/aws/monitor/dashboard"
+
+  name_prefix                = "mw-prd-apse1"
+  region                     = "ap-southeast-1"
+  api_id                     = module.mw-prd-apse1-api-01.api_id
+  application_log_group_name = module.mw-prd-apse1-cw-01.application_log_group_name
+  access_log_group_name      = module.mw-prd-apse1-api-01.access_log_group_name
+}
