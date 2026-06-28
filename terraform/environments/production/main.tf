@@ -277,4 +277,5 @@ module "mw-prd-apse1-dashboard-01" {
   api_id                     = module.mw-prd-apse1-api-01.api_id
   application_log_group_name = module.mw-prd-apse1-cw-01.application_log_group_name
   access_log_group_name      = module.mw-prd-apse1-api-01.access_log_group_name
+  cluster_log_group_name     = module.mw-prd-apse1-cw-01.cluster_log_group_name
 }
