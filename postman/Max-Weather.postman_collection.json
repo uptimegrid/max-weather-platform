@@ -75,13 +75,13 @@
           }
         ],
         "url": {
-          "raw": "{{base_url}}/weather?city=London",
+          "raw": "{{base_url}}/weather?city={{city}}",
           "host": ["{{base_url}}"],
           "path": ["weather"],
           "query": [
             {
               "key": "city",
-              "value": "London"
+              "value": "{{city}}"
             }
           ]
         }
@@ -113,6 +113,11 @@
       "key": "scope",
       "value": "https://api.max-weather.production/invoke",
       "description": "OAuth2 scope (Terraform output: oauth_scope)"
+    },
+    {
+      "key": "city",
+      "value": "London",
+      "description": "City queried by the Weather request. Overridden per-iteration when a data file (e.g. postman/cities.csv) is supplied to the Collection Runner or performance test."
     },
     {
       "key": "access_token",
