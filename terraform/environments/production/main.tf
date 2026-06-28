@@ -152,6 +152,25 @@ module "mw-prd-apse1-eks-01" {
 
   # Grant the Jenkins agent EKS cluster-admin so it can run kubectl during deploys.
   cluster_admin_principal_arns = [module.mw-prd-apse1-ec2-jenkins-agent-01.iam_role_arn]
+
+  # Ingress on the cluster security group (owned by the EKS module). The agent
+  # reaches the private API endpoint on 443, and the API Gateway VPC Link reaches
+  # the NodePort range. Defined here as data (which SG is trusted), implemented by
+  # the module that owns the SG.
+  cluster_sg_ingress_rules = {
+    jenkins_agent_api = {
+      description              = "EKS API server (443) from the Jenkins build agent"
+      from_port                = 443
+      to_port                  = 443
+      source_security_group_id = module.mw-prd-apse1-ec2-jenkins-agent-01.security_group_id
+    }
+    vpclink_nodeport = {
+      description              = "NodePort range from the API Gateway VPC Link"
+      from_port                = 30000
+      to_port                  = 32767
+      source_security_group_id = aws_security_group.mw-prd-apse1-sg-vpclink-01.id
+    }
+  }
 }
 
 module "mw-prd-apse1-cw-01" {
@@ -227,32 +246,19 @@ resource "aws_security_group" "mw-prd-apse1-sg-vpclink-01" {
   tags = { Name = "mw-prd-apse1-sg-vpclink-01" }
 }
 
-# Allow the self-hosted Jenkins agent to reach the EKS API server (443) on the
-# control-plane ENIs. The cluster API endpoint is private-only, so the deploy
-# pipeline's kubectl/helm calls run from the agent inside the VPC. This is an
-# SG-to-SG rule (agent SG -> EKS cluster SG); being in the same VPC means the
-# route is local, so opening the security group is all that is required.
-resource "aws_security_group_rule" "agent_to_eks_api" {
-  type                     = "ingress"
-  description              = "EKS API server (443) from the Jenkins build agent"
-  from_port                = 443
-  to_port                  = 443
-  protocol                 = "tcp"
-  security_group_id        = module.mw-prd-apse1-eks-01.cluster_security_group_id
-  source_security_group_id = module.mw-prd-apse1-ec2-jenkins-agent-01.security_group_id
+# These ingress rules used to be standalone aws_security_group_rule resources in
+# this composition, attached to the EKS module's own security group. They now
+# live inside the EKS module via its cluster_sg_ingress_rules input (see the
+# module call above). The moved blocks migrate the existing state in place, so
+# this refactor is a no-op (no destroy/recreate, no access disruption).
+moved {
+  from = aws_security_group_rule.agent_to_eks_api
+  to   = module.mw-prd-apse1-eks-01.aws_security_group_rule.cluster_ingress["jenkins_agent_api"]
 }
 
-# Allow the VPC Link to reach the NodePort range on the EKS cluster security
-# group. Note: depending on how ingress-nginx targets nodes, the EKS-managed
-# node security group may also need this rule at deploy time.
-resource "aws_security_group_rule" "vpclink_to_nodes" {
-  type                     = "ingress"
-  description              = "NodePort range from the API Gateway VPC Link"
-  from_port                = 30000
-  to_port                  = 32767
-  protocol                 = "tcp"
-  security_group_id        = module.mw-prd-apse1-eks-01.cluster_security_group_id
-  source_security_group_id = aws_security_group.mw-prd-apse1-sg-vpclink-01.id
+moved {
+  from = aws_security_group_rule.vpclink_to_nodes
+  to   = module.mw-prd-apse1-eks-01.aws_security_group_rule.cluster_ingress["vpclink_nodeport"]
 }
 
 module "mw-prd-apse1-api-01" {
