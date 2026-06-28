@@ -6,8 +6,10 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: weather.example.com
-      http:
+    # No host match (catch-all): API Gateway is the single public entry point and
+    # forwards requests to the internal NLB with the execute-api Host header, so a
+    # hard-coded host would not match. Routing is by path only at the ingress.
+    - http:
         paths:
           - path: /
             pathType: Prefix

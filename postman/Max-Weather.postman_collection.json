@@ -91,27 +91,27 @@
   "variable": [
     {
       "key": "base_url",
-      "value": "https://api.example.com",
+      "value": "https://c867ir1r3k.execute-api.ap-southeast-1.amazonaws.com",
       "description": "API Gateway endpoint (Terraform output: api_endpoint)"
     },
     {
       "key": "token_url",
-      "value": "https://example.auth.ap-southeast-1.amazoncognito.com/oauth2/token",
+      "value": "https://mw-prd-apse1-auth-01.auth.ap-southeast-1.amazoncognito.com/oauth2/token",
       "description": "Cognito token endpoint (Terraform output: oauth_token_endpoint)"
     },
     {
       "key": "client_id",
-      "value": "replace-me",
+      "value": "6hlro095gquq88m154dl67cb28",
       "description": "Cognito app client id (Terraform output: oauth_client_id)"
     },
     {
       "key": "client_secret",
       "value": "replace-me",
-      "description": "Cognito app client secret (Terraform output: oauth_client_secret)"
+      "description": "Cognito app client secret (Terraform output: oauth_client_secret) — fill locally, do NOT commit"
     },
     {
       "key": "scope",
-      "value": "https://api.max-weather.staging/weather.read",
+      "value": "https://api.max-weather.production/invoke",
       "description": "OAuth2 scope (Terraform output: oauth_scope)"
     },
     {

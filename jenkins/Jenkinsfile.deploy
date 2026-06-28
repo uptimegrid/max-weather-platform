@@ -21,10 +21,13 @@ pipeline {
 
   environment {
     AWS_REGION       = 'ap-southeast-1'
-    ECR_REGISTRY     = 'ACCOUNT_ID.dkr.ecr.ap-southeast-1.amazonaws.com'
+    ECR_REGISTRY     = '638599595074.dkr.ecr.ap-southeast-1.amazonaws.com'
+    // ECR repository name (Terraform output: repository_url's last path segment).
+    ECR_REPO         = 'mw-prd-apse1-ecr-01'
+    // Logical image name (the kustomize image key in kubernetes/base/deployment.yaml).
     IMAGE_NAME       = 'max-weather-app'
-    STAGING_CLUSTER  = 'max-weather-staging'
-    PROD_CLUSTER     = 'max-weather-production'
+    STAGING_CLUSTER  = 'mw-stg-apse1-eks-01'
+    PROD_CLUSTER     = 'mw-prd-apse1-eks-01'
   }
 
   stages {
@@ -43,7 +46,7 @@ pipeline {
         sh '''
           aws eks update-kubeconfig --name "$STAGING_CLUSTER" --region "$AWS_REGION"
           cd kubernetes/staging
-          kustomize edit set image "$IMAGE_NAME=$ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+          kustomize edit set image "$IMAGE_NAME=$ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG"
           kubectl apply -k .
           kubectl -n max-weather rollout status deployment/weather-api --timeout=180s
         '''
@@ -67,7 +70,7 @@ pipeline {
         sh '''
           aws eks update-kubeconfig --name "$PROD_CLUSTER" --region "$AWS_REGION"
           cd kubernetes/production
-          kustomize edit set image "$IMAGE_NAME=$ECR_REGISTRY/$IMAGE_NAME:$IMAGE_TAG"
+          kustomize edit set image "$IMAGE_NAME=$ECR_REGISTRY/$ECR_REPO:$IMAGE_TAG"
           kubectl apply -k .
           kubectl -n max-weather rollout status deployment/weather-api --timeout=180s
         '''

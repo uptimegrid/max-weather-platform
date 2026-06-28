@@ -227,6 +227,21 @@ resource "aws_security_group" "mw-prd-apse1-sg-vpclink-01" {
   tags = { Name = "mw-prd-apse1-sg-vpclink-01" }
 }
 
+# Allow the self-hosted Jenkins agent to reach the EKS API server (443) on the
+# control-plane ENIs. The cluster API endpoint is private-only, so the deploy
+# pipeline's kubectl/helm calls run from the agent inside the VPC. This is an
+# SG-to-SG rule (agent SG -> EKS cluster SG); being in the same VPC means the
+# route is local, so opening the security group is all that is required.
+resource "aws_security_group_rule" "agent_to_eks_api" {
+  type                     = "ingress"
+  description              = "EKS API server (443) from the Jenkins build agent"
+  from_port                = 443
+  to_port                  = 443
+  protocol                 = "tcp"
+  security_group_id        = module.mw-prd-apse1-eks-01.cluster_security_group_id
+  source_security_group_id = module.mw-prd-apse1-ec2-jenkins-agent-01.security_group_id
+}
+
 # Allow the VPC Link to reach the NodePort range on the EKS cluster security
 # group. Note: depending on how ingress-nginx targets nodes, the EKS-managed
 # node security group may also need this rule at deploy time.
