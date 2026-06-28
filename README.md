@@ -39,8 +39,9 @@ Goal: the platform infrastructure is deployed **through Jenkins** (the agent run
 the Terraform pipeline). A small one-time bootstrap from a laptop stands Jenkins
 up; Jenkins then owns the rest.
 
-1. **`scripts/bootstrap-backend.sh`** — create the S3 state bucket + DynamoDB lock
-   table (Terraform cannot create its own backend).
+1. **`scripts/bootstrap-backend.sh`** — create the S3 state bucket (Terraform
+   cannot create its own backend). State locking uses S3 native locking
+   (`use_lockfile`), so no DynamoDB table is needed.
 2. **From the laptop**, `terraform init -backend-config=backend.hcl` then a
    **targeted apply** of the foundation Jenkins needs: the VPC + the two Jenkins
    EC2 instances (controller + agent). Terraform only creates the plain VMs;
