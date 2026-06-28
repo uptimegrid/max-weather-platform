@@ -16,7 +16,7 @@
 //
 // Agent requirements (self-hosted): terraform >= 1.6, aws CLI v2, git.
 // The agent IAM role needs permissions to manage the resources and to access the
-// S3 state bucket (state locking uses S3 native locking, no DynamoDB table).
+// S3 state bucket (state locking uses S3 native locking).
 //
 // Inputs: each environment's Terraform inputs (VPC/subnet CIDRs, oauth_*, EKS
 // sizing, etc.) are declared directly in that env's `main.tf` (no variables.tf /
@@ -52,8 +52,7 @@ pipeline {
     SHARED_MODULES_REPO = 'https://github.com/uptimegrid/terraform-shared-modules.git'
     SHARED_MODULES_REF  = 'main'
     // Terraform S3 backend bucket, stored as a Jenkins secret-text credential.
-    // State locking uses S3 native locking (use_lockfile in backend.tf), so no
-    // DynamoDB table is needed.
+    // State locking uses S3 native locking (use_lockfile in backend.tf).
     TF_STATE_BUCKET = credentials('mw-tf-state-bucket')
   }
 

@@ -41,7 +41,7 @@ up; Jenkins then owns the rest.
 
 1. **`scripts/bootstrap-backend.sh`** — create the S3 state bucket (Terraform
    cannot create its own backend). State locking uses S3 native locking
-   (`use_lockfile`), so no DynamoDB table is needed.
+   (`use_lockfile`).
 2. **From the laptop**, `terraform init -backend-config=backend.hcl` then a
    **targeted apply** of the foundation Jenkins needs: the VPC + the two Jenkins
    EC2 instances (controller + agent). Terraform only creates the plain VMs;

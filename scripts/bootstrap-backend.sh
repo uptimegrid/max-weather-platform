@@ -6,7 +6,7 @@ set -euo pipefail
 # Terraform cannot create the backend that stores its own state (chicken/egg),
 # so this script provisions the S3 bucket (versioned, encrypted, private) once,
 # before the first `terraform init`. State locking uses S3 native locking
-# (use_lockfile = true in backend.tf), so no DynamoDB table is required.
+# (use_lockfile = true in backend.tf).
 #
 # Usage:
 #   AWS_REGION=ap-southeast-1 BUCKET=mw-apse1-tfstate-bucket-01 ./scripts/bootstrap-backend.sh
