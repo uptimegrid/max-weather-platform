@@ -29,10 +29,21 @@
 // full apply. After that, day-to-day applies run in a single pass.
 
 pipeline {
-  agent any
+  // Run on the build agent (it has terraform / aws CLI / kubectl / git and the
+  // IAM instance role for AWS + S3 backend access). The controller has no tools.
+  agent { label 'build' }
+
+  // SCM polling: the controller is private (no inbound from the internet), so
+  // GitHub webhooks cannot reach it. Instead Jenkins polls GitHub every ~2 min
+  // (outbound via NAT) and starts a build when it sees a new commit.
+  triggers {
+    pollSCM('H/2 * * * *')
+  }
 
   parameters {
-    choice(name: 'ENVIRONMENT', choices: ['staging', 'production'], description: 'Target environment')
+    // Production is first so polled builds (which use default parameter values)
+    // target production, the environment deployed for this assessment.
+    choice(name: 'ENVIRONMENT', choices: ['production', 'staging'], description: 'Target environment')
     booleanParam(name: 'AUTO_APPROVE', defaultValue: false, description: 'Skip manual approval and apply automatically')
   }
 

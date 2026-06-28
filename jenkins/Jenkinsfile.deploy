@@ -11,7 +11,9 @@
 // `cluster_admin_principal_arns` so it can run kubectl (see EKS access entries).
 
 pipeline {
-  agent any
+  // Run on the build agent (it has aws CLI / kubectl / kustomize and the IAM
+  // instance role listed in the EKS cluster_admin_principal_arns).
+  agent { label 'build' }
 
   parameters {
     string(name: 'IMAGE_TAG', defaultValue: '', description: 'Immutable image tag built by the app pipeline (required)')
