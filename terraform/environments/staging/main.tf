@@ -52,8 +52,11 @@ module "mw-stg-apse1-eks-01" {
   node_max_size           = 4
   node_disk_size          = 30
   endpoint_private_access = true
-  endpoint_public_access  = true
-  cluster_log_types       = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
+  # Private-only API endpoint: reachable from inside the VPC (e.g. the Jenkins
+  # agent) but not the public internet. Re-enable public access from the console
+  # temporarily when external kubectl access is needed.
+  endpoint_public_access = false
+  cluster_log_types      = ["api", "audit", "authenticator", "controllerManager", "scheduler"]
 
   # Jenkins lives in production. If staging is ever deployed and managed by that
   # Jenkins agent, add the production output `jenkins_agent_role_arn` here.
